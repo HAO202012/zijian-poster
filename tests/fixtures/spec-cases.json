@@ -1,0 +1,20 @@
+{
+  "clampCases": [
+    { "field": "fontSize", "input": 9, "expected": 1.4 },
+    { "field": "fontSize", "input": 0.1, "expected": 0.7 },
+    { "field": "margin", "input": -1, "expected": 0.05 },
+    { "field": "seed", "input": 10000000000, "expected": 999999 },
+    { "field": "lineHeight", "input": 9, "expected": 2.2 },
+    { "field": "letterSpacing", "input": 1, "expected": 0.16 }
+  ],
+  "shareCases": [
+    {
+      "text": "把想说的话，排成一张海报。",
+      "themeId": "neon",
+      "ratioId": "9:16",
+      "direction": "vertical",
+      "align": "center",
+      "seed": 12345
+    }
+  ]
+}

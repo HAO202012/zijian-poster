@@ -1,0 +1,224 @@
+# 模块契约（W2 产出，Gate 2 冻结）
+# 本项目没有 HTTP 接口：这份文件描述 core 模块对 ui / 测试暴露的 ES Module 边界。
+# 冻结后 dev 与 test 成员都只读本文件；变更必须回 Gate 2 复审。
+#
+# 单位约定（避免同名不同义）：
+#   PosterSpec.fontSize  = 倍数（0.7–1.4），*短边 0.042 后才是 px
+#   layout*.fontSize      = px（逻辑像素，下限 10）
+#   letterSpacing         = em 倍数（0–0.16），在 layout 内部换算成 px
+#   margin                = 短边倍数（0.05–0.16）
+
+version: "1.1.0"           # v1.1: review/arch 的 R1–R8 已在冻结前修正
+frozen: true              # 由编排器 approve-gate G2 后改为 true
+kind: esm-module-contract
+change_policy: "冻结后任何变更须 Gate 2 复审；dev 成员不得修改本文件"
+
+runtime:
+  target: browser-es2022
+  build: none
+  dependencies: none
+  style: "原生 ES Module；import 路径必须带 .js；不得引用 CDN / npm 包"
+
+measure_contract:
+  signature: "measure(text: string, fontSize: number, role: 'headline'|'body') -> number"
+  unit: "纯字形宽度 px，**不含 letterSpacing**；字距由 layout* 内部按 letterSpacing*fontSize*(字符数-1) 叠加"
+  reason: "保证同一 measure 在渲染器（绑 ctx.font）与测试（假 measurer）下语义一致"
+  test_double: "measure = (text, size) => [...text].length * size（逐字计宽，不用 text.length，避免代理对被算 2 个）"
+
+error_policy:
+  - "纯函数不抛异常：非法入参一律回退默认值或返回 null"
+  - "Canvas 相关函数先 try/catch；失败返回 null 或抛 'export_failed'，由 ui 负责提示"
+  - "DOM 能力（canvas/clipboard）缺失时由 exporter 返回降级结果，不抛未捕获异常"
+
+modules:
+  - id: core/rng
+    path: project/src/js/core/rng.js
+    owner: dev/a
+    exports:
+      - name: hashSeed
+        signature: "hashSeed(input: string|number) -> uint32"
+        note: "FNV-1a；同输入同输出，null/undefined 归一为空串"
+      - name: createRng
+        signature: "createRng(seed: number) -> { seed, next(), int(min,max), pick(arr), chance(p) }"
+        note: "mulberry32；next() ∈ [0,1)；int 含两端；pick 空数组返回 undefined"
+    fixtures:
+      - project/tests/fixtures/rng-cases.json
+
+  - id: core/presets
+    path: project/src/js/core/presets.js
+    owner: dev/a
+    exports:
+      - name: RATIOS
+        signature: "Array<{ id, label, width, height, hint }>"
+        note: "顺序 3:4, 4:5, 1:1, 9:16, 16:9；width/height 为逻辑像素（3:4=1080×1440，9:16=1080×1920，16:9=1920×1080）"
+      - name: THEMES
+        signature: "Array<{ id, name, bg:{from,to,angle,glow?}, ink, accent, muted, fontId, deco, grain, swatch }>"
+        note: "≥10 套，id 唯一；fontId ∈ FONTS.id；deco ∈ frame|grid|halo|rules|dots|stamp；grain ∈ [0,0.2]；ink 与 bg.from 对比度 ≥ 4.5:1"
+      - name: FONTS
+        signature: "Array<{ id, label, stack }>"
+        note: "id ∈ serif|sans|kai|mono；stack 末位必须是 generic family（serif/sans-serif/monospace）"
+      - name: SAMPLES
+        signature: "Array<{ id, label, text }>"
+        note: "4 条示例文案（短诗/摘录/活动/品牌），每条 20–80 字"
+      - name: PLACEHOLDER_TEXT
+        signature: "string"
+        note: "空输入时的占位文案；ui 用它渲染预览，renderer 不做兜底"
+      - name: DEFAULT_SPEC
+        signature: "object"
+        note: "与 core/spec.DEFAULT_SPEC 同一引用语义；字段见下方 schemas.PosterSpec"
+      - name: getTheme
+        signature: "getTheme(id) -> theme"
+        note: "未命中返回 THEMES[0]，不抛异常"
+      - name: getRatio
+        signature: "getRatio(id) -> ratio"
+        note: "未命中返回 RATIOS[0]"
+      - name: getTextBox
+        signature: "getTextBox(ratio, margin) -> { x, y, width, height, footerHeight, short }"
+        note: |
+          short = min(ratio.width, ratio.height)；m = short*margin；footerHeight = short*0.06
+          x = m；y = m*1.15；width = ratio.width-2m；height = ratio.height-2m-footerHeight
+          页脚高度恒定，与页脚是否有内容无关（PRD F6）
+      - name: resolveFontStack
+        signature: "resolveFontStack(fontId: 'auto'|'serif'|'sans'|'kai'|'mono', themeFontId) -> string"
+        note: "auto 取 themeFontId；未知值回退 serif 栈"
+      - name: randomStyle
+        signature: "randomStyle(rng) -> { themeId, ratioId, direction, align }"
+        note: "从 THEMES/RATIOS 均匀抽取；direction ∈ horizontal|vertical；align ∈ left|center|right"
+    fixtures:
+      - project/tests/fixtures/themes.json
+
+  - id: core/text-layout
+    path: project/src/js/core/text-layout.js
+    owner: dev/a
+    exports:
+      - name: normalizeText
+        signature: "normalizeText(text) -> string"
+        note: "\\r\\n→\\n；首尾空白裁掉；连续 3+ 换行压成 2 个；非字符串转空串"
+      - name: tokenizeParagraph
+        signature: "tokenizeParagraph(paragraph) -> Array<{ text, type: 'cjk'|'word'|'space' }>"
+        note: "CJK 逐字、Latin/数字/连字符成词、空格单独 token；空串返回 []"
+      - name: wrapParagraph
+        signature: "wrapParagraph(tokens, measure, maxWidth, opts?) -> Array<{ text, width }>"
+        note: "measure(text)->number（不含字距，由调用方在 opts.letterSpacing 里给 em 值）；禁则：行首不吃 NoStart 字符，行尾不留 NoEnd 字符；单 token 超宽时独占一行"
+      - name: splitHeadline
+        signature: "splitHeadline(text) -> { headline, body }"
+        note: "在第一个 \\n 或第一个句末标点（。！？!?…，含该标点）处切分；无句末标点时 headline=headline 全文、body=''；text 为空时两者皆 ''"
+      - name: layoutText
+        signature: "layoutText(opts) -> { direction, fontSize, lines, width, height, overflow }"
+        note: |
+          opts = { text, measure(text,fontSize,role)->number, maxWidth, maxHeight=Infinity,
+                   fontSize, lineHeight=1.7, letterSpacing=0, direction='horizontal' }
+          horizontal: lines=[{text,width}]，行高=fontSize*lineHeight，height=lines.length*行高
+          vertical:   lines=[{text,width,height}]（每个元素是一列），列距=fontSize*1.55，
+                      列内字距=fontSize*1.08
+          overflow = width>maxWidth || height>maxHeight
+      - name: layoutDocument
+        signature: "layoutDocument(opts) -> { blocks, fontSize, width, height, overflow }"
+        note: |
+          opts = { headline, body, measure(text,fontSize,role)->number, boxWidth, boxHeight,
+                   fontSize, lineHeight=1.7, letterSpacing=0, direction='horizontal',
+                   headlineScale=1.75 }
+          blocks=[{ kind:'headline'|'body', fontSize, lines, width, height, gapBefore }]
+          标题行高固定 min(lineHeight,1.35)；gapBefore = 正文字号*0.8（首块 0）
+          标题字号 = round(fontSize*headlineScale)
+      - name: fitDocument
+        signature: "fitDocument(opts) -> layoutDocument 结果"
+        note: "在 [minFontSize=10, opts.fontSize] 内二分 12 次取最大可容纳字号；全部 overflow 时返回 minFontSize 结果且 overflow=true"
+    fixtures:
+      - project/tests/fixtures/layout-cases.json
+
+  - id: core/spec
+    path: project/src/js/core/spec.js
+    owner: dev/a
+    exports:
+      - name: DEFAULT_SPEC
+        signature: "PosterSpec"
+        note: "text:'', themeId:'ink', ratioId:'3:4', direction:'horizontal', align:'left', fontId:'auto', headline:true, footer:'', tag:'', seed:42, fontSize:1, lineHeight:1.75, letterSpacing:0.02, margin:0.09"
+      - name: normalizeSpec
+        signature: "normalizeSpec(partial) -> PosterSpec"
+        note: "未知主题/画幅回退默认；数值 clamp；text ≤4000 字；footer ≤40 字；tag ≤16 字；seed 取整 0..999999；不修改入参"
+      - name: toShareHash
+        signature: "toShareHash(spec) -> string"
+        note: "返回**纯 base64url**，只含与 DEFAULT_SPEC 不同的字段；不含前导 # 与 s=；ui 负责拼 `#s=`；失败返回空串"
+      - name: fromShareHash
+        signature: "fromShareHash(input) -> PosterSpec|null"
+        note: "接受纯 base64url / `#s=` / 完整 URL（自动取 hash）；解析失败返回 null；成功等价于 normalizeSpec(解码对象)"
+      - name: posterFileName
+        signature: "posterFileName(spec) -> string"
+        note: "zijian-<themeId>-<ratioId 冒号换 x>-<seed>.png；非法字符替换为 -"
+    fixtures:
+      - project/tests/fixtures/spec-cases.json
+
+  - id: core/renderer
+    path: project/src/js/core/renderer.js
+    owner: dev/a
+    exports:
+      - name: renderPoster
+        signature: "renderPoster(ctx, spec, { width, height }) -> void"
+        note: |
+          坐标为 width×height 逻辑像素；**禁止 setTransform/resetTransform/clip 外泄**，
+          只允许 save/restore 内修改状态；不改调用方已设置的变换。
+          预览：canvas.width = 逻辑宽 * min(devicePixelRatio,2)，CSS 尺寸由容器等比控制，
+                调用前 ctx.setTransform(scale,0,0,scale,0,0)。
+          导出：exporter 用 scale=2 新建 canvas 后同样方式调用。
+          spec.text 为空时只画背景/装饰/页脚（ui 负责用 PLACEHOLDER_TEXT 兜底显示）。
+          同 spec + seed 输出稳定（装饰的随机偏移来自 createRng(spec.seed)）。
+    fixtures: []
+
+  - id: core/exporter
+    path: project/src/js/core/exporter.js
+    owner: dev/a
+    exports:
+      - name: renderToCanvas
+        signature: "renderToCanvas(spec, { scale=2 }) -> HTMLCanvasElement|null"
+        note: "按 ratio 逻辑尺寸 × scale 新建 canvas，setTransform(scale) 后调用 renderPoster"
+      - name: posterBlob
+        signature: "posterBlob(spec, scale=2) -> Promise<Blob|null>"
+      - name: downloadPoster
+        signature: "downloadPoster(spec) -> Promise<{ filename, bytes }>"
+        note: "触发 a[download]；toBlob 为 null 时抛 Error('export_failed') 由 ui 捕获"
+      - name: copyPoster
+        signature: "copyPoster(spec) -> Promise<'image'|'download'>"
+        note: "ClipboardItem 不可用或被拒时降级为下载并返回 'download'"
+
+ui_consumes:
+  # ui 只依赖以下导出；不得依赖 core 内部结构
+  - core/spec.DEFAULT_SPEC
+  - core/spec.normalizeSpec
+  - core/spec.toShareHash
+  - core/spec.fromShareHash
+  - core/spec.posterFileName
+  - core/presets.THEMES / RATIOS / FONTS / SAMPLES / PLACEHOLDER_TEXT
+  - core/presets.getTheme / getRatio / getTextBox / resolveFontStack / randomStyle
+  - core/renderer.renderPoster
+  - core/exporter.downloadPoster / copyPoster
+  - core/rng.createRng / hashSeed
+
+schemas:
+  PosterSpec:
+    type: object
+    required: [text, themeId, ratioId, direction, align, fontId, headline, footer, tag, seed, fontSize, lineHeight, letterSpacing, margin]
+    properties:
+      text: { type: string, maxLength: 4000 }
+      themeId: { type: string, ref: core/presets.THEMES.id }
+      ratioId: { type: string, enum: ["3:4", "4:5", "1:1", "9:16", "16:9"] }
+      direction: { type: string, enum: ["horizontal", "vertical"] }
+      align: { type: string, enum: ["left", "center", "right"] }
+      fontId: { type: string, enum: ["auto", "serif", "sans", "kai", "mono"] }
+      headline: { type: boolean }
+      footer: { type: string, maxLength: 40 }
+      tag: { type: string, maxLength: 16 }
+      seed: { type: integer, minimum: 0, maximum: 999999 }
+      fontSize: { type: number, minimum: 0.7, maximum: 1.4, unit: "倍数" }
+      lineHeight: { type: number, minimum: 1.3, maximum: 2.2 }
+      letterSpacing: { type: number, minimum: 0, maximum: 0.16, unit: "em" }
+      margin: { type: number, minimum: 0.05, maximum: 0.16, unit: "短边倍数" }
+
+non_functional:
+  frame_budget_ms: 16
+  max_text_chars: 4000
+  export_scale_default: 2
+  a11y: "所有控件有 label/aria-label；主题卡可键盘操作；尊重 prefers-reduced-motion"
+
+# 契约测试生成规则：test/contract 基于 modules + schemas 生成用例，覆盖正常值、边界值、非法值，
+# 不得读取 project/src/ 实现。测量一律用 measure_contract.test_double。

@@ -1,0 +1,6 @@
+{
+  "note": "只锁不变量，不锁具体随机值：同 seed 同序列、不同 seed 不同序列。",
+  "deterministicSeed": 2026,
+  "drawCount": 20,
+  "hashInputs": ["poster", "字间", "", "42"]
+}

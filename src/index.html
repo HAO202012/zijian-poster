@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>字间 ZIJIAN · 文字海报生成器</title>
+    <meta
+      name="description"
+      content="输入一段文字，在浏览器里排成一张海报。10 套主题、5 种画幅、横竖排、2 倍高清导出，全部本地完成。"
+    />
+    <meta name="theme-color" content="#0b0b0c" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0c'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23ff5c35' font-family='serif'%3E%E5%AD%97%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="字间 ZIJIAN 首页">
+          <span class="brand-mark" aria-hidden="true">字</span>
+          <span class="brand-text">
+            <strong>字间</strong>
+            <em>ZIJIAN · 文字海报</em>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost" id="random-btn" type="button">
+            <span aria-hidden="true">✦</span> 随机灵感
+          </button>
+          <button class="btn btn-primary" id="download-btn" type="button">下载 PNG</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="panel" aria-label="海报设置">
+          <div class="panel-scroll">
+            <section class="block">
+              <div class="block-head">
+                <h2>文案</h2>
+                <span class="meta-count" id="char-count">0 字</span>
+              </div>
+              <label class="sr-only" for="text-input">海报文案</label>
+              <textarea
+                id="text-input"
+                rows="6"
+                spellcheck="false"
+                placeholder="把想说的话写在这里，支持换行。第一句会自动放大作为标题。"
+              ></textarea>
+              <div class="samples" id="samples" role="group" aria-label="示例文案"></div>
+            </section>
+
+            <section class="block">
+              <div class="block-head">
+                <h2>主题</h2>
+                <span class="meta-hint" id="theme-name">宣纸</span>
+              </div>
+              <div class="themes" id="themes" role="radiogroup" aria-label="主题"></div>
+            </section>
+
+            <section class="block">
+              <div class="block-head">
+                <h2>画幅与方向</h2>
+              </div>
+              <div class="field">
+                <span class="field-label">画幅</span>
+                <div class="segmented" id="ratios" role="radiogroup" aria-label="画幅"></div>
+              </div>
+              <div class="field">
+                <span class="field-label">方向</span>
+                <div class="segmented" id="directions" role="radiogroup" aria-label="文字方向">
+                  <button type="button" data-value="horizontal" aria-pressed="true">横排</button>
+                  <button type="button" data-value="vertical" aria-pressed="false">竖排</button>
+                </div>
+              </div>
+              <div class="field">
+                <span class="field-label">对齐</span>
+                <div class="segmented" id="aligns" role="radiogroup" aria-label="对齐方式">
+                  <button type="button" data-value="left" aria-pressed="true">左</button>
+                  <button type="button" data-value="center" aria-pressed="false">中</button>
+                  <button type="button" data-value="right" aria-pressed="false">右</button>
+                </div>
+              </div>
+              <p class="note" id="direction-note" hidden>竖排逐字自上而下，更适合中文；英文与数字会被拆开排。</p>
+            </section>
+
+            <section class="block">
+              <div class="block-head">
+                <h2>排版</h2>
+              </div>
+
+              <label class="switch-row">
+                <span>
+                  <strong>首句放大</strong>
+                  <small>第一句作为标题，其余作为正文</small>
+                </span>
+                <input type="checkbox" id="headline-toggle" checked />
+                <span class="switch" aria-hidden="true"></span>
+              </label>
+
+              <label class="slider-row">
+                <span class="slider-label">字号<em id="fontSize-value">1.00</em></span>
+                <input type="range" id="fontSize" data-field="fontSize" min="0.7" max="1.4" step="0.05" value="1" />
+              </label>
+              <label class="slider-row">
+                <span class="slider-label">行距<em id="lineHeight-value">1.75</em></span>
+                <input type="range" id="lineHeight" data-field="lineHeight" min="1.3" max="2.2" step="0.05" value="1.75" />
+              </label>
+              <label class="slider-row">
+                <span class="slider-label">字距<em id="letterSpacing-value">0.02</em></span>
+                <input
+                  type="range"
+                  id="letterSpacing"
+                  data-field="letterSpacing"
+                  min="0"
+                  max="0.16"
+                  step="0.01"
+                  value="0.02"
+                />
+              </label>
+              <label class="slider-row">
+                <span class="slider-label">留白<em id="margin-value">0.09</em></span>
+                <input type="range" id="margin" data-field="margin" min="0.05" max="0.16" step="0.01" value="0.09" />
+              </label>
+
+              <label class="field field-inline">
+                <span class="field-label">字体</span>
+                <select id="font-select"></select>
+              </label>
+            </section>
+
+            <section class="block">
+              <div class="block-head">
+                <h2>署名</h2>
+              </div>
+              <label class="field">
+                <span class="field-label">页脚</span>
+                <input id="footer-input" type="text" maxlength="40" placeholder="署名 / 出处 / 日期" />
+              </label>
+              <label class="field">
+                <span class="field-label">右上标签</span>
+                <input id="tag-input" type="text" maxlength="16" placeholder="例如：读书笔记" />
+              </label>
+            </section>
+
+            <p class="footnote">
+              全部在浏览器本地完成，不上传文字。系统字体渲染，不同设备字形略有差异。
+            </p>
+          </div>
+        </section>
+
+        <section class="stage-wrap" aria-label="海报预览">
+          <div class="stage" id="stage">
+            <canvas id="poster" aria-label="海报预览画布"></canvas>
+          </div>
+          <div class="stage-meta">
+            <div class="meta-left">
+              <span id="meta-size">1080 × 1440 · 3:4</span>
+              <button class="seed" id="seed-btn" type="button" title="复制 seed">seed 42</button>
+            </div>
+            <div class="meta-actions">
+              <button class="btn btn-small" id="copy-btn" type="button">复制图片</button>
+              <button class="btn btn-small" id="share-btn" type="button">分享链接</button>
+              <button class="btn btn-small" id="reset-btn" type="button">重置样式</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <script type="module" src="./js/ui/app.js"></script>
+    </div>
+  </body>
+</html>

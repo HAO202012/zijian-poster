@@ -1,0 +1,7 @@
+{
+  "count": 10,
+  "minThemeCount": 10,
+  "minContrast": 4.5,
+  "requiredIds": ["ink", "midnight", "neon", "sunset", "moss", "editorial", "ocean", "tape", "blush", "mono"],
+  "requiredDecos": ["frame", "grid", "halo", "rules", "dots", "stamp"]
+}

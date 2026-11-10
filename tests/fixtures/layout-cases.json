@@ -1,0 +1,18 @@
+{
+  "kinsoku": {
+    "text": "今天天气很好，我们出去玩吧。记得带上相机和外套。",
+    "maxWidth": 250,
+    "fontSize": 50,
+    "forbiddenStart": "，。、；：！？…—）」』】》"
+  },
+  "headline": {
+    "sentence": "把复杂的事情，做得简单。剩下的交给时间。",
+    "expectHeadline": "把复杂的事情，做得简单。",
+    "expectBody": "剩下的交给时间。"
+  },
+  "vertical": {
+    "text": "一二三四五六七八九十",
+    "maxHeight": 160,
+    "fontSize": 50
+  }
+}
