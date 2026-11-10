@@ -23,8 +23,10 @@
 
 ## 在线体验
 
-- Vercel：<https://zijian-poster.vercel.app>
-- GitHub Pages：仓库启用 Pages 后由 `.github/workflows/pages.yml` 自动发布 `src/`
+- GitHub Pages：<https://hao202012.github.io/zijian-poster/>
+- Vercel：<https://zijian-poster.vercel.app>（配置见 `src/vercel.json`）
+
+主分支推送后由 `.github/workflows/pages.yml` 自动发布 `src/`。
 
 ## 本地运行
 
